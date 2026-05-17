@@ -1,7 +1,25 @@
 #!/bin/sh
 set -e
 
-# Capture runtime UID/GID from environment variables, defaulting to 1000
+# Under rootless podman, the container's "root" (uid 0) is a mapping into the
+# host's running user — already an unprivileged user from the kernel's view.
+# The gosu downgrade-to-node pattern was for rootful Docker, where in-container
+# root was actual root and dropping privileges mattered. Under rootless it
+# accomplishes nothing security-wise AND it remaps the process to a subuid
+# (e.g. host uid 100999) that doesn't own any of the bind-mounted host paths
+# (e.g. /srv/agent-instructions/<world>/), breaking spawned tools that read
+# them. Detect rootless via /proc/self/uid_map — if uid 0 inside maps to a
+# non-zero host uid, we're rootless — and exec the command directly so the
+# whole app runs as that host user.
+if [ -r /proc/self/uid_map ]; then
+    HOST_UID_FOR_ROOT=$(awk '$1==0 {print $2; exit}' /proc/self/uid_map)
+    if [ -n "$HOST_UID_FOR_ROOT" ] && [ "$HOST_UID_FOR_ROOT" -ne 0 ]; then
+        exec "$@"
+    fi
+fi
+
+# Rootful path: remap node's uid/gid if requested, fix volume ownership, and
+# drop privileges to node via gosu.
 PUID=${USER_UID:-1000}
 PGID=${USER_GID:-1000}
 
