@@ -756,14 +756,16 @@ export function registerAgentCommands(program: Command): void {
     agent
       .command("local-cli")
       .description(
-        "Create an agent API key, install local Paperclip skills for Codex/Claude, and print shell exports",
+        "Create an agent API key, install skills for Codex/Claude, and print shell exports. " +
+          "Skills are sourced from the shared aeon-devops catalog when PAPERCLIP_SKILLS_ROOT is set " +
+          "(see aeon-devops provisioning/DECISION-skills-mechanism.md); the fixed repo-private skill set is retired.",
       )
       .argument("<agentRef>", "Agent ID or shortname/url-key")
       .requiredOption("-C, --company-id <id>", "Company ID")
       .option("--key-name <name>", "API key label", "local-cli")
       .option(
         "--no-install-skills",
-        "Skip installing Paperclip skills into ~/.codex/skills and ~/.claude/skills",
+        "Skip installing skills into ~/.codex/skills and ~/.claude/skills",
       )
       .action(async (agentRef: string, opts: AgentLocalCliOptions) => {
         try {
@@ -784,8 +786,11 @@ export function registerAgentCommands(program: Command): void {
           }
 
           const installSummaries: SkillsInstallSummary[] = [];
+          let skillsSource: string | null = null;
+          const sharedCatalogRoot = process.env.PAPERCLIP_SKILLS_ROOT?.trim() || null;
           if (opts.installSkills !== false) {
             const skillsDir = await resolvePaperclipSkillsDir(__moduleDir, [path.resolve(process.cwd(), "skills")]);
+            skillsSource = skillsDir;
             if (!skillsDir) {
               throw new Error(
                 "Could not locate local Paperclip skills directory. Expected ./skills in the repo checkout.",
@@ -830,6 +835,16 @@ export function registerAgentCommands(program: Command): void {
 
           console.log(`Agent: ${agentRow.name} (${agentRow.id})`);
           console.log(`API key created: ${key.name} (${key.id})`);
+          if (installSummaries.length > 0) {
+            if (sharedCatalogRoot) {
+              console.log(`Skills source: shared aeon-devops catalog (PAPERCLIP_SKILLS_ROOT=${skillsSource})`);
+            } else {
+              console.log(
+                `Skills source: ${skillsSource} (Paperclip repo-private skills/ — the fixed private set is retired; ` +
+                  `set PAPERCLIP_SKILLS_ROOT to install from the shared aeon-devops catalog, see provisioning/DECISION-skills-mechanism.md)`,
+              );
+            }
+          }
           if (installSummaries.length > 0) {
             for (const summary of installSummaries) {
               console.log(

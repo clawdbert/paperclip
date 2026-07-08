@@ -2076,7 +2076,15 @@ export async function resolvePaperclipSkillsDir(
   moduleDir: string,
   additionalCandidates: string[] = [],
 ): Promise<string | null> {
+  // Highest priority: an external, git-tracked skills catalog root declared by the
+  // owner of capability provisioning (aeon-devops, per DR-0002 / OPS-48). When
+  // PAPERCLIP_SKILLS_ROOT is set, dispatch reads that shared catalog instead of
+  // Paperclip's private repo-root skills/ copy. The catalog honors the same contract
+  // this resolver already expects: a directory whose immediate subdirectories are
+  // skills (each with a SKILL.md). Unset -> unchanged behavior (repo-private skills/).
+  const envSkillsRoot = process.env.PAPERCLIP_SKILLS_ROOT?.trim();
   const candidates = [
+    ...(envSkillsRoot ? [path.resolve(expandHomePrefix(envSkillsRoot))] : []),
     ...PAPERCLIP_SKILL_ROOT_RELATIVE_CANDIDATES.map((relativePath) => path.resolve(moduleDir, relativePath)),
     ...additionalCandidates.map((candidate) => path.resolve(candidate)),
   ];
