@@ -1037,6 +1037,51 @@ describeEmbeddedPostgres("authorization service", () => {
     })).resolves.toMatchObject({ allowed: false, reason: "deny_low_trust_boundary" });
   });
 
+  it("allows a same-company agent to comment on another agent's assigned issue without a mention (ACP-48 Option B)", async () => {
+    const company = await createCompany(db, "SameCompanyComment");
+    const otherCompany = await createCompany(db, "SameCompanyCommentForeign");
+    const project = await createProject(db, company.id, "SameCompanyCommentProject");
+    const ownerAgent = await createAgent(db, company.id, { role: "engineer" });
+    const commenterAgent = await createAgent(db, company.id, { role: "engineer" });
+    const foreignAgent = await createAgent(db, otherCompany.id, { role: "engineer" });
+    const issue = await createIssue(db, company.id, {
+      title: "Same-company comment target",
+      projectId: project.id,
+      assigneeAgentId: ownerAgent.id,
+    });
+
+    const authorization = authorizationService(db);
+    const resource = {
+      type: "issue",
+      companyId: company.id,
+      issueId: issue.id,
+      projectId: issue.projectId,
+      assigneeAgentId: ownerAgent.id,
+      status: issue.status,
+    } as const;
+
+    // Positive: a non-assignee same-company agent may comment with no @-mention grant.
+    await expect(authorization.decide({
+      actor: { type: "agent", agentId: commenterAgent.id, companyId: company.id, source: "agent_key" },
+      action: "issue:comment",
+      resource,
+    })).resolves.toMatchObject({ allowed: true, reason: "allow_same_company_comment" });
+
+    // Negative: issue:mutate stays assignee-scoped for that same non-assignee agent.
+    await expect(authorization.decide({
+      actor: { type: "agent", agentId: commenterAgent.id, companyId: company.id, source: "agent_key" },
+      action: "issue:mutate",
+      resource,
+    })).resolves.toMatchObject({ allowed: false, reason: "deny_missing_grant" });
+
+    // Negative: a different-company agent is still denied at the company boundary.
+    await expect(authorization.decide({
+      actor: { type: "agent", agentId: foreignAgent.id, companyId: otherCompany.id, source: "agent_key" },
+      action: "issue:comment",
+      resource,
+    })).resolves.toMatchObject({ allowed: false, reason: "deny_company_boundary" });
+  });
+
   it("allows active board-user comments to create mention-scoped issue grants", async () => {
     const company = await createCompany(db, "MentionCommentBoardGrant");
     const allowedProject = await createProject(db, company.id, "MentionBoardAllowed");

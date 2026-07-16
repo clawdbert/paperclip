@@ -89,6 +89,7 @@ export type AuthorizationDecision = {
     | "allow_explicit_grant"
     | "allow_legacy_agent_creator"
     | "allow_issue_mention_grant"
+    | "allow_same_company_comment"
     | "allow_self"
     | "allow_company_agent"
     | "allow_company_member"
@@ -1579,6 +1580,23 @@ export function authorizationService(db: Db) {
         })
       ) {
         return allowIssueMentionGrant(input.action);
+      }
+      // ACP-48 (Option B): a same-company agent may comment on any issue in its
+      // own company, even one assigned to another agent and with no @-mention
+      // grant. The actor is already proven same-company above (the companyId
+      // guards at the top of this agent branch), and low-trust agents are gated
+      // earlier by decideLowTrustAccess, so this never crosses the company or
+      // low-trust boundary. Only issue:comment is loosened — issue:mutate stays
+      // assignee-scoped — mirroring the deliberate narrowness of the @-mention
+      // comment grant. Removes the cross-station-reply token burn that forced
+      // agents onto child-issue workarounds.
+      if (input.action === "issue:comment") {
+        return allow({
+          action: input.action,
+          reason: "allow_same_company_comment",
+          explanation:
+            "Allowed because a same-company agent may comment on any issue in its company (issue:comment only).",
+        });
       }
     }
     if (
