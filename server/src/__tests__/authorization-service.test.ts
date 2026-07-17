@@ -408,7 +408,7 @@ describeEmbeddedPostgres("authorization service", () => {
     })).resolves.toMatchObject({
       allowed: false,
       code: "RESPONSIBLE_USER_UNAUTHORIZED",
-      reason: "deny_unsupported_action",
+      reason: "deny_missing_grant",
     });
   });
 
@@ -830,15 +830,91 @@ describeEmbeddedPostgres("authorization service", () => {
       allowed: false,
       reason: "deny_unsupported_action",
     });
-    const issue = await createIssue(db, company.id, { title: "Wake denied issue" });
-    await expect(authorization.decide({
-      actor: { type: "board", userId, source: "session" },
-      action: "issue:mutate",
-      resource: { type: "issue", companyId: company.id, issueId: issue.id },
-    })).resolves.toMatchObject({
-      allowed: false,
-      reason: "deny_unsupported_action",
+  });
+
+  it("allows issue:comment and issue:mutate for active non-viewer board members", async () => {
+    const company = await createCompany(db, "BoardIssueWriteAllowed");
+    const userId = `user-${randomUUID()}`;
+    const issue = await createIssue(db, company.id, { title: "Board write allowed issue" });
+    await db.insert(companyMemberships).values({
+      companyId: company.id,
+      principalType: "user",
+      principalId: userId,
+      status: "active",
+      membershipRole: "member",
     });
+
+    const authorization = authorizationService(db);
+    const actor = { type: "board" as const, userId, source: "session" as const };
+    const resource = { type: "issue" as const, companyId: company.id, issueId: issue.id };
+
+    await expect(authorization.decide({
+      actor,
+      action: "issue:comment",
+      resource,
+    })).resolves.toMatchObject({ allowed: true, reason: "allow_simple_company_member" });
+    await expect(authorization.decide({
+      actor,
+      action: "issue:mutate",
+      resource,
+    })).resolves.toMatchObject({ allowed: true, reason: "allow_simple_company_member" });
+  });
+
+  it("denies issue:comment and issue:mutate for viewer board members", async () => {
+    const company = await createCompany(db, "BoardIssueWriteViewerDenied");
+    const userId = `user-${randomUUID()}`;
+    const issue = await createIssue(db, company.id, { title: "Board write viewer-denied issue" });
+    await db.insert(companyMemberships).values({
+      companyId: company.id,
+      principalType: "user",
+      principalId: userId,
+      status: "active",
+      membershipRole: "viewer",
+    });
+
+    const authorization = authorizationService(db);
+    const actor = { type: "board" as const, userId, source: "session" as const };
+    const resource = { type: "issue" as const, companyId: company.id, issueId: issue.id };
+
+    await expect(authorization.decide({
+      actor,
+      action: "issue:comment",
+      resource,
+    })).resolves.toMatchObject({ allowed: false, reason: "deny_missing_grant" });
+    await expect(authorization.decide({
+      actor,
+      action: "issue:mutate",
+      resource,
+    })).resolves.toMatchObject({ allowed: false, reason: "deny_missing_grant" });
+  });
+
+  it("denies board issue:mutate/comment for users without an active membership", async () => {
+    const company = await createCompany(db, "BoardIssueWriteNoMembership");
+    const otherCompany = await createCompany(db, "BoardIssueWriteNoMembershipOther");
+    const userId = `user-${randomUUID()}`;
+    const issue = await createIssue(db, company.id, { title: "Board write no-membership issue" });
+    await db.insert(companyMemberships).values({
+      companyId: otherCompany.id,
+      principalType: "user",
+      principalId: userId,
+      status: "active",
+      membershipRole: "member",
+    });
+
+    const authorization = authorizationService(db);
+    const actor = { type: "board" as const, userId, source: "session" as const };
+    const resource = { type: "issue" as const, companyId: company.id, issueId: issue.id };
+
+    await expect(authorization.decide({
+      actor,
+      action: "issue:mutate",
+      resource,
+    })).resolves.toMatchObject({ allowed: false, reason: "deny_missing_membership" });
+    await expect(authorization.decide({
+      actor,
+      action: "issue:comment",
+      resource,
+    })).resolves.toMatchObject({ allowed: false, reason: "deny_missing_membership" });
   });
 
   it("allows mentioned agents to read and comment on assigned issues without granting issue mutation", async () => {

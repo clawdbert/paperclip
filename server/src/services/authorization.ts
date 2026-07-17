@@ -1378,13 +1378,23 @@ export function authorizationService(db: Db) {
           input.action === "issue:read" ||
           input.action === "project:read" ||
           input.action === "runtime:manage" ||
-          input.action === "secrets:read"
+          input.action === "secrets:read" ||
+          input.action === "issue:comment" ||
+          input.action === "issue:mutate"
         ) {
           const membership = await getActiveMembership(companyId, "user", input.actor.userId);
           // Mirroring the tasks:assign carve-out above, viewers keep the
           // read-only visibility actions but not the privileged ones.
+          // issue:comment and issue:mutate are board write actions, granted
+          // only to non-viewer same-company members, closing the ACP-56
+          // safe-list gap where they previously fell through to
+          // deny_unsupported_action — mirroring the cloud-tenant non-viewer
+          // branch about fifty lines above.
           const requiresNonViewer =
-            input.action === "runtime:manage" || input.action === "secrets:read";
+            input.action === "runtime:manage" ||
+            input.action === "secrets:read" ||
+            input.action === "issue:comment" ||
+            input.action === "issue:mutate";
           if (membership && (!requiresNonViewer || membership.membershipRole !== "viewer")) {
             return allow({
               action: input.action,
