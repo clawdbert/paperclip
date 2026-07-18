@@ -1699,11 +1699,7 @@ describe.sequential("agent permission routes", () => {
       expect(res.status).toBe(200);
     });
 
-    it("denies an agent actor without agents:create when reading peer config", async () => {
-      // Agent actors must still pass the agents:create gate (explicit
-      // grant OR canCreateAgents permission on the agent record). A peer
-      // agent in the same company without that permission must not be
-      // able to read another agent's configuration.
+    it("allows a same-company agent to read peer config without agents:create", async () => {
       const peerAgentId = "33333333-3333-4333-8333-333333333333";
       const peerAgent = { ...baseAgent, id: peerAgentId };
       mockAgentService.getById.mockImplementation(async (id: string) => {
@@ -1725,7 +1721,7 @@ describe.sequential("agent permission routes", () => {
 
       const res = await request(app).get(`/api/agents/${peerAgentId}/configuration`);
 
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(200);
     });
 
     it("allows an agent actor with agents:create grant to read peer config", async () => {
