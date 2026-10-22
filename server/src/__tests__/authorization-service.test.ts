@@ -871,7 +871,7 @@ describeEmbeddedPostgres("authorization service", () => {
     })).resolves.toMatchObject({
       allowed: false,
       code: "RESPONSIBLE_USER_UNAUTHORIZED",
-      reason: "deny_missing_grant",
+      reason: "deny_unsupported_action",
     });
   });
 
@@ -1484,91 +1484,15 @@ describeEmbeddedPostgres("authorization service", () => {
       allowed: true,
       reason: "allow_simple_company_member",
     });
-  });
-
-  it("allows issue:comment and issue:mutate for active non-viewer board members", async () => {
-    const company = await createCompany(db, "BoardIssueWriteAllowed");
-    const userId = `user-${randomUUID()}`;
-    const issue = await createIssue(db, company.id, { title: "Board write allowed issue" });
-    await db.insert(companyMemberships).values({
-      companyId: company.id,
-      principalType: "user",
-      principalId: userId,
-      status: "active",
-      membershipRole: "member",
-    });
-
-    const authorization = authorizationService(db);
-    const actor = { type: "board" as const, userId, source: "session" as const };
-    const resource = { type: "issue" as const, companyId: company.id, issueId: issue.id };
-
+    const issue = await createIssue(db, company.id, { title: "Wake denied issue" });
     await expect(authorization.decide({
-      actor,
-      action: "issue:comment",
-      resource,
-    })).resolves.toMatchObject({ allowed: true, reason: "allow_simple_company_member" });
-    await expect(authorization.decide({
-      actor,
+      actor: { type: "board", userId, source: "session" },
       action: "issue:mutate",
-      resource,
-    })).resolves.toMatchObject({ allowed: true, reason: "allow_simple_company_member" });
-  });
-
-  it("denies issue:comment and issue:mutate for viewer board members", async () => {
-    const company = await createCompany(db, "BoardIssueWriteViewerDenied");
-    const userId = `user-${randomUUID()}`;
-    const issue = await createIssue(db, company.id, { title: "Board write viewer-denied issue" });
-    await db.insert(companyMemberships).values({
-      companyId: company.id,
-      principalType: "user",
-      principalId: userId,
-      status: "active",
-      membershipRole: "viewer",
+      resource: { type: "issue", companyId: company.id, issueId: issue.id },
+    })).resolves.toMatchObject({
+      allowed: false,
+      reason: "deny_unsupported_action",
     });
-
-    const authorization = authorizationService(db);
-    const actor = { type: "board" as const, userId, source: "session" as const };
-    const resource = { type: "issue" as const, companyId: company.id, issueId: issue.id };
-
-    await expect(authorization.decide({
-      actor,
-      action: "issue:comment",
-      resource,
-    })).resolves.toMatchObject({ allowed: false, reason: "deny_missing_grant" });
-    await expect(authorization.decide({
-      actor,
-      action: "issue:mutate",
-      resource,
-    })).resolves.toMatchObject({ allowed: false, reason: "deny_missing_grant" });
-  });
-
-  it("denies board issue:mutate/comment for users without an active membership", async () => {
-    const company = await createCompany(db, "BoardIssueWriteNoMembership");
-    const otherCompany = await createCompany(db, "BoardIssueWriteNoMembershipOther");
-    const userId = `user-${randomUUID()}`;
-    const issue = await createIssue(db, company.id, { title: "Board write no-membership issue" });
-    await db.insert(companyMemberships).values({
-      companyId: otherCompany.id,
-      principalType: "user",
-      principalId: userId,
-      status: "active",
-      membershipRole: "member",
-    });
-
-    const authorization = authorizationService(db);
-    const actor = { type: "board" as const, userId, source: "session" as const };
-    const resource = { type: "issue" as const, companyId: company.id, issueId: issue.id };
-
-    await expect(authorization.decide({
-      actor,
-      action: "issue:mutate",
-      resource,
-    })).resolves.toMatchObject({ allowed: false, reason: "deny_missing_membership" });
-    await expect(authorization.decide({
-      actor,
-      action: "issue:comment",
-      resource,
-    })).resolves.toMatchObject({ allowed: false, reason: "deny_missing_membership" });
   });
 
   it("allows mentioned agents to read and comment on assigned issues without granting issue mutation", async () => {
@@ -1765,51 +1689,6 @@ describeEmbeddedPostgres("authorization service", () => {
       action: "issue:comment",
       resource,
     })).resolves.toMatchObject({ allowed: false, reason: "deny_low_trust_boundary" });
-  });
-
-  it("allows a same-company agent to comment on another agent's assigned issue without a mention (ACP-48 Option B)", async () => {
-    const company = await createCompany(db, "SameCompanyComment");
-    const otherCompany = await createCompany(db, "SameCompanyCommentForeign");
-    const project = await createProject(db, company.id, "SameCompanyCommentProject");
-    const ownerAgent = await createAgent(db, company.id, { role: "engineer" });
-    const commenterAgent = await createAgent(db, company.id, { role: "engineer" });
-    const foreignAgent = await createAgent(db, otherCompany.id, { role: "engineer" });
-    const issue = await createIssue(db, company.id, {
-      title: "Same-company comment target",
-      projectId: project.id,
-      assigneeAgentId: ownerAgent.id,
-    });
-
-    const authorization = authorizationService(db);
-    const resource = {
-      type: "issue",
-      companyId: company.id,
-      issueId: issue.id,
-      projectId: issue.projectId,
-      assigneeAgentId: ownerAgent.id,
-      status: issue.status,
-    } as const;
-
-    // Positive: a non-assignee same-company agent may comment with no @-mention grant.
-    await expect(authorization.decide({
-      actor: { type: "agent", agentId: commenterAgent.id, companyId: company.id, source: "agent_key" },
-      action: "issue:comment",
-      resource,
-    })).resolves.toMatchObject({ allowed: true, reason: "allow_same_company_comment" });
-
-    // Negative: issue:mutate stays assignee-scoped for that same non-assignee agent.
-    await expect(authorization.decide({
-      actor: { type: "agent", agentId: commenterAgent.id, companyId: company.id, source: "agent_key" },
-      action: "issue:mutate",
-      resource,
-    })).resolves.toMatchObject({ allowed: false, reason: "deny_missing_grant" });
-
-    // Negative: a different-company agent is still denied at the company boundary.
-    await expect(authorization.decide({
-      actor: { type: "agent", agentId: foreignAgent.id, companyId: otherCompany.id, source: "agent_key" },
-      action: "issue:comment",
-      resource,
-    })).resolves.toMatchObject({ allowed: false, reason: "deny_company_boundary" });
   });
 
   it("allows active board-user comments to create mention-scoped issue grants", async () => {
