@@ -1,6 +1,6 @@
 ---
 name: rim-debug
-description: Debug rim by querying the service for what's wrong — parse/render errors and structural/acceptance violations — filterable by project, code, kind, status. Use when asked "what's broken / what's erroring / what needs fixing / what's invalid" in rim, or to scope errors to one project (RIM- vs another project's prefix).
+description: Debug rim by querying the service for parse/render errors and structural/acceptance violations, filterable by project, code, kind, status. Use for "what's broken / erroring / invalid" in rim, or to scope errors to one project.
 ---
 
 # rim-debug — find what's wrong by calling the service

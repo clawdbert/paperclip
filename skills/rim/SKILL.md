@@ -1,6 +1,6 @@
 ---
 name: rim
-description: How to drive rim — the local recursive-issue/MDX work tracker + doc system that REPLACES Linear and the old concepts viewer for ALL projects (rim itself = RIM-, plus one code prefix per other project). The methodology is specified by RIM-192/OUGHT and its installable OUGHT skill nodes (methodology, planning, ticketing, building, orient, grill, diagramming, recipe). Load for ANY request to track / document / scope / plan / write up findings / ticket work, or when working in rim's store or app.
+description: How to drive rim, the local recursive-issue/MDX work tracker and doc system that replaces Linear for all projects. Load for ANY request to track, document, scope, plan or ticket work, or when working in rim's store or app. Methodology: RIM-192/OUGHT.
 ---
 
 # rim

@@ -1,6 +1,6 @@
 ---
 name: rim-store
-description: How the store works on disk and how to get a working store from a fresh clone. The working store/ is git-ignored; a clone ships only the flattened published/ export. Load when setting up rim after cloning, when the tree is empty, or when reasoning about store vs published, the export/hydrate round-trip, the private store, or how nodes map to files.
+description: How rim's store works on disk and how to get a working store from a fresh clone (store/ is git-ignored; a clone ships only published/). Load when setting up rim after cloning, when the tree is empty, or for store vs published.
 ---
 
 # rim-store — the store, published, and getting a working tree
