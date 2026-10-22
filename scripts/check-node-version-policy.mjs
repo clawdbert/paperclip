@@ -5,6 +5,9 @@ import { isNode24ImageTag } from "./node-image-policy.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const expectedEngine = ">=24.11.0";
+// Local carry: the October 2026 security release. The root manifest may pin a stricter patch floor
+// (">=24.22.1 <25"); every other manifest must still carry the upstream range exactly.
+const rootEngines = new Set([expectedEngine, ">=24.22.1 <25"]);
 const expectedTypes = "^24.0.0";
 const failures = [];
 const skippedDirectories = new Set([".git", ".paperclip", "coverage", "data", "dist", "node_modules"]);
@@ -31,8 +34,10 @@ walk(repoRoot, (filePath) => {
       failures.push(`${relative(filePath)}: ${section}.@types/node must be ${expectedTypes}, found ${specifier}`);
     }
   }
-  if (manifest.engines?.node !== expectedEngine) {
-    failures.push(`${relative(filePath)}: engines.node must be ${expectedEngine}, found ${manifest.engines?.node ?? "missing"}`);
+  const isRoot = path.resolve(filePath) === path.join(repoRoot, "package.json");
+  const allowed = isRoot ? rootEngines.has(manifest.engines?.node) : manifest.engines?.node === expectedEngine;
+  if (!allowed) {
+    failures.push(`${relative(filePath)}: engines.node must be ${isRoot ? [...rootEngines].join(" or ") : expectedEngine}, found ${manifest.engines?.node ?? "missing"}`);
   }
 });
 
