@@ -1,6 +1,6 @@
 ---
 name: using-rim
-description: The primary interface for driving rim from the shell — the `rim` CLI, which wraps the dev-server API and formats it so you read state at a glance instead of `curl … | python3`. The front door for inspecting and changing rim. Load whenever you need to look at or act on rim state (errors, the tree, a node, the glossary, flush, scaffold) outside the UI.
+description: The `rim` CLI: the front door for inspecting and changing rim state (errors, tree, a node, glossary, flush, scaffold) from the shell. Load whenever you need to look at or act on rim state outside the UI.
 ---
 
 # Using rim — the `rim` CLI is the front door
