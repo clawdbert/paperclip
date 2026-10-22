@@ -1,4 +1,5 @@
-import type { BillingType } from "../constants.js";
+import type { AgentAppearance } from "../agent-appearance.js";
+import type { BillingType, CostStatus } from "../constants.js";
 
 export interface CostEvent {
   id: string;
@@ -12,6 +13,7 @@ export interface CostEvent {
   provider: string;
   biller: string;
   billingType: BillingType;
+  costStatus: CostStatus;
   model: string;
   inputTokens: number;
   cachedInputTokens: number;
@@ -46,6 +48,8 @@ export interface IssueCostSummary {
 export interface CostByAgent {
   agentId: string;
   agentName: string | null;
+  agentAppearance?: AgentAppearance | null;
+  avatarUrl?: string;
   agentStatus: string | null;
   costCents: number;
   inputTokens: number;
@@ -93,6 +97,8 @@ export interface CostByBiller {
 export interface CostByAgentModel {
   agentId: string;
   agentName: string | null;
+  agentAppearance?: AgentAppearance | null;
+  avatarUrl?: string;
   provider: string;
   biller: string;
   billingType: BillingType;
